@@ -24,6 +24,7 @@ setup(
         'xobjects>=0.0.4',
         'xtrack>=0.0.1',
         'xfields>=0.0.1',
-        'mpi4py'
+        'mpi4py',
+        'PyHEADTAIL'
         ]
     )

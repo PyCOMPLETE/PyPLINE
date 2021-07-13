@@ -10,8 +10,8 @@ import xfields as xf
 xt.enable_pyheadtail_interface() # has to be before the imports such that PyPLINEDParticles inherints the right class
 from PyHEADTAIL.trackers.transverse_tracking import TransverseSegmentMap
 from PyHEADTAIL.monitors.monitors import BunchMonitor
-from PyPLINEDBeamBeam import PyPLINEDBeamBeam
-from PyPLINEDParticles import PyPLINEDParticles
+from PyPLINE.PyPLINEDBeamBeam import PyPLINEDBeamBeam
+from PyPLINE.PyPLINEDParticles import PyPLINEDParticles
 
 context = xo.ContextCpu(omp_num_threads=0)
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
                          delta=sigma_delta*np.random.randn(n_macroparticles),
                          name='B1b1',rank=0,number=0,
                          )
-    particlesB2b1.gamma = gamma #  TODO this is a quick fix, since the setter of gamma is not called by the constructor, so the related quantities are not set
+    particlesB1b1.gamma = gamma #  TODO this is a quick fix, since the setter of gamma is not called by the constructor, so the related quantities are not set
     particlesB2b1 = PyPLINEDParticles(_context=context,
                          x=np.sqrt(eps_geo_x*betastar_x)*(np.random.randn(n_macroparticles)),
                          px=np.sqrt(eps_geo_x/betastar_x)*np.random.randn(n_macroparticles),

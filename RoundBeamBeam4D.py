@@ -2,7 +2,7 @@ import numpy as np
 from scipy import constants as cst
 from PyPLINEDElement import PyPLINEDElement
 
-class RoundBeamBeam4D(PyPLINEDElement):
+class RoundBeamBeam4D_firstTest(PyPLINEDElement):
 
     def sendMessages(self,beam, partnerIDs):
         tag = self.getMessageTag(beam.ID,partnerIDs[0])
@@ -16,7 +16,7 @@ class RoundBeamBeam4D(PyPLINEDElement):
             #print(beam.ID.name,'sending avg to',partnerIDs[0].name,'with tag',tag)
             if not beam.isReal:
                 print('Cannot compute avg on fake beam')
-            params = np.array([beam.mean_x(),beam.mean_y(),beam.sigma_x(),beam.sigma_y(),beam.intensity])
+            params = np.array([beam.mean_x(),beam.mean_y(),beam.sigma_x(),beam.sigma_y(),beam.n_particles])
             self._comm.Isend(params,dest=partnerIDs[0].rank,tag=tag)
             self._pendingRequests[key] = beam.period
 

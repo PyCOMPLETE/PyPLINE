@@ -1,14 +1,13 @@
 import numpy as np
 
-from xtrack.dress_element import MetaBeamElement
 import xfields as xf
-from PyPLINEDElement import PyPLINEDElement
+from PyPLINE.PyPLINEDElement import PyPLINEDElement
 
 class PyPLINEDBeamBeam(PyPLINEDElement):
 
     def __init__(self,name,number,_context=None,_buffer=None,_offset=None,min_sigma_diff=1e-10):
         PyPLINEDElement.__init__(self,name,number)
-        self.tracker = xf.BeamBeamBiGaussian2D(_context=_context,_buffer=_buffer,_offset=_offset,min_sigma_diff=min_sigma_diff)
+        self.tracker = xf.BeamBeamBiGaussian2D(_context=_context,_buffer=_buffer,_offset=_offset,min_sigma_diff=min_sigma_diff,beta0=0.9)
 
     def setQ0(self,q0):
         self.tracker.update(q0=q0)
@@ -40,7 +39,7 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
     def track(self, beam, partnerIDs):
         tag = self.getMessageTag(partnerIDs[0],beam.ID)
         params =  np.empty(5, dtype=np.float64)
-        self._comm.Irecv(params,source=partnerIDs[0].rank,tag=tag)
+        self._comm.Recv(params,source=partnerIDs[0].rank,tag=tag)
         #print(beam.ID.name,'revieved avg from',partnerIDs[0].name,'with tag',tag,params)
         self.tracker.update(mean_x=params[0],mean_y=params[1],sigma_x=params[2],sigma_y=params[3],n_particles=params[4])
         self.tracker.track(beam)

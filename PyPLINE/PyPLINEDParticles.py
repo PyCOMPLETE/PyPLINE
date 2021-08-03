@@ -1,6 +1,5 @@
 #import time
 from mpi4py import MPI
-
 import xtrack as xt
 
 class PyPLINEDParticlesID:
@@ -12,7 +11,7 @@ class PyPLINEDParticlesID:
 # The bunches in the same core must have a different number. The name is there for convenience.
 class PyPLINEDParticles(xt.Particles):
 
-    def __init__(self,name,rank,number,*args, **kwargs):
+    def __init__(self,name,rank,number,delay=0.0,*args, **kwargs):
         super(PyPLINEDParticles, self).__init__(*args, **kwargs)
         self._comm = MPI.COMM_WORLD
         self.isReal = self._comm.Get_rank() == rank
@@ -20,6 +19,7 @@ class PyPLINEDParticles(xt.Particles):
             super().__init__(*args, **kwargs)
         self._pipeline = []
         self._partnerIDs = []
+        self.delay = delay
         self._positionInPipeLine = 0
         self.ID = PyPLINEDParticlesID(name,number,rank)
         self.period = 0
@@ -43,6 +43,7 @@ class PyPLINEDParticles(xt.Particles):
             self.period += 1
 
     def step(self):
+        #print('Bunch',self.ID.name,'on rank',self.ID.rank,'turn',self.period,'at pipeline position',self._positionInPipeLine,'is PyPLINED',hasattr(self._pipeline[self._positionInPipeLine], 'isPyPLINED'))
         if hasattr(self._pipeline[self._positionInPipeLine], 'isPyPLINED'):
             #print('Bunch',self.ID.name,'on rank',self.ID.rank,'turn',self.period,'at pipeline position',self._positionInPipeLine,self._pipeline[self._positionInPipeLine].name)
             self._pipeline[self._positionInPipeLine].sendMessages(self,self._partnerIDs[self._positionInPipeLine])

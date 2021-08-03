@@ -45,7 +45,6 @@ if __name__ == '__main__':
                          delta=sigma_delta*np.random.randn(n_macroparticles),
                          name='B1b1',rank=0,number=0,
                          )
-    particlesB1b1.gamma = gamma #  TODO this is a quick fix, since the setter of gamma is not called by the constructor, so the related quantities are not set
     particlesB2b1 = PyPLINEDParticles(_context=context,
                          x=np.sqrt(eps_geo_x*betastar_x)*(np.random.randn(n_macroparticles)),
                          px=np.sqrt(eps_geo_x/betastar_x)*np.random.randn(n_macroparticles),
@@ -55,7 +54,6 @@ if __name__ == '__main__':
                          delta=sigma_delta*np.random.randn(n_macroparticles),
                          name='B2b1',rank=1,number=0,
                          )
-    particlesB2b1.gamma = gamma
 
     print('Instanciating beam-beam elements')
     beamBeamIP1 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP1',number=0)
@@ -64,9 +62,9 @@ if __name__ == '__main__':
     if myRank == 0:
         myBunch = particlesB1b1
         beamBeamIP1.setQ0(particlesB2b1.q0)
-        beamBeamIP1.setBeta0(particlesB2b1.beta0)
+        beamBeamIP1.setBeta0(particlesB2b1.beta0[0])
         beamBeamIP2.setQ0(particlesB2b1.q0)
-        beamBeamIP2.setBeta0(particlesB2b1.beta0)
+        beamBeamIP2.setBeta0(particlesB2b1.beta0[0])
         print('Instanciating B1 arcs')
         arc12_b1 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
                                 alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
@@ -88,9 +86,9 @@ if __name__ == '__main__':
     elif myRank == 1:
         myBunch = particlesB2b1
         beamBeamIP1.setQ0(particlesB1b1.q0)
-        beamBeamIP1.setBeta0(particlesB1b1.beta0)
+        beamBeamIP1.setBeta0(particlesB1b1.beta0[0])
         beamBeamIP2.setQ0(particlesB1b1.q0)
-        beamBeamIP2.setBeta0(particlesB1b1.beta0)
+        beamBeamIP2.setBeta0(particlesB1b1.beta0[0])
         print('Instanciating B2 arcs')
         arc12_b2 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
                                     alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,

@@ -11,12 +11,11 @@ from PyHEADTAIL.particles.slicing import SliceSet
 
 class PyPLINEDWakeField(WakeField,PyPLINEDElement):
 
-    def __init__(self,name,number,slicer,*wake_sources):
+    def __init__(self,name,number,n_turns_wake,slicer,*wake_sources):
         PyPLINEDElement.__init__(self,name,number)
         WakeField.__init__(self,slicer,*wake_sources)
 
-        self.n_turns_wake_max = max([ source.n_turns_wake
-                                 for source in wake_sources ])
+        self.n_turns_wake = n_turns_wake
         self.slice_set_deque = {}
         self.slice_set_age_deque = {}
 
@@ -81,8 +80,8 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
 
     def track(self, beam, partnerIDs):
         if beam.ID.number not in self.slice_set_deque.keys():
-            self.slice_set_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake_max*(1+len(partnerIDs)))
-            self.slice_set_age_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake_max*(1+len(partnerIDs)))
+            self.slice_set_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partnerIDs)))
+            self.slice_set_age_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partnerIDs)))
         # delaying past slice sets
         for i in range(len(self.slice_set_age_deque[beam.ID.number])):
             self.slice_set_age_deque[beam.ID.number][i] += (beam.circumference / (beam.beta * constants.c))

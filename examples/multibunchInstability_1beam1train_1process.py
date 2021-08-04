@@ -30,6 +30,7 @@ context = xo.ContextCpu(omp_num_threads=0)
 myRank = MPI.COMM_WORLD.Get_rank()
 nTurn = int(1E5)
 nBunch = 8
+bunch_spacing = 25E-9
 bunch_intensity = 1.8E11
 n_macroparticles = int(1E4)
 energy = 7E3 # [GeV]
@@ -84,7 +85,7 @@ arc = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = beta_x, disp_x_0 = 0.0
 #                           detx_x = detx_x,detx_y = detx_y,dety_y = detx_x, dety_x = detx_y,
 #                           energy_ref_increment=0.0,energy_increment=0)
 particles_list = []
-for bunchNumber in range(nBunch):
+for bunch_number in range(nBunch):
     particles_list.append(PyPLINEDParticles(circumference=circumference,particlenumber_per_mp=bunch_intensity/n_macroparticles,
                              _context=context,
                              q0 = 1,
@@ -96,18 +97,18 @@ for bunchNumber in range(nBunch):
                              py=np.sqrt(normemit/beta_y/gamma/betar)*np.random.randn(n_macroparticles),
                              zeta=sigma_z*np.random.randn(n_macroparticles),
                              delta=sigma_delta*np.random.randn(n_macroparticles),
-                             name=f'B1b{bunchNumber}',rank=0,number=bunchNumber
+                             name=f'B1b{bunch_number}',rank=0,number=bunch_number,delay=bunch_number*bunch_spacing
                              )
                     )
 
-for bunchNumber in range(nBunch):
+for bunch_number in range(nBunch):
     partnerIDs = []
-    for partnerBunchNumber in range(nBunch):
-        if partnerBunchNumber != bunchNumber:
-            partnerIDs.append(particles_list[partnerBunchNumber].ID)
-    particles_list[bunchNumber].addElementToPipeline(arc)
-    particles_list[bunchNumber].addElementToPipeline(wake_field,partnerIDs)
-    particles_list[bunchNumber].addElementToPipeline(BunchMonitor(filename=f'Multibunch_B1b{bunchNumber}',n_steps=nTurn))
+    for partner_bunch_number in range(nBunch):
+        if partner_bunch_number != bunch_number:
+            partnerIDs.append(particles_list[partner_bunch_number].ID)
+    particles_list[bunch_number].addElementToPipeline(arc)
+    particles_list[bunch_number].addElementToPipeline(wake_field,partnerIDs)
+    particles_list[bunch_number].addElementToPipeline(BunchMonitor(filename=f'Multibunch_B1b{bunch_number}',n_steps=nTurn))
 
 print('Start tracking')
 abort = False

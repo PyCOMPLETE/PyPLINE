@@ -9,10 +9,10 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
         PyPLINEDElement.__init__(self,name,number)
         self.tracker = xf.BeamBeamBiGaussian2D(_context=_context,_buffer=_buffer,_offset=_offset,min_sigma_diff=min_sigma_diff,beta0=0.9)
 
-    def setQ0(self,q0):
+    def set_q0(self,q0):
         self.tracker.update(q0=q0)
 
-    def setBeta0(self,beta0):
+    def set_beta0(self,beta0):
         self.tracker.update(beta0=beta0)
 
     def send_messages(self,beam, partners_IDs):

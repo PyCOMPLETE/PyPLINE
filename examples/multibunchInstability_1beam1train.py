@@ -59,7 +59,7 @@ emit_s = 4*np.pi*sigma_z*sigma_delta*p0/constants.e # eVs for PyHEADTAIL
 
 n_slices_wakes = 200
 limit_z = 3 * sigma_z
-wakefile = '/afs/cern.ch/work/x/xbuffat/PyCOMPLETE/PyPLINE/examples/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
+wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 n_turns_wake = 1
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'],n_turns_wake=n_bunch*n_turns_wake) # Trick to remain compatible with PyHEADTAIL single bunch version (n_turn_wake is in fact the maximum number of slice sets that will be taken into account in WakeKick._accumulate_source_signal). The attribute name should be changed in PyHEADTAIL.

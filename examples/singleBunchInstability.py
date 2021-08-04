@@ -56,7 +56,7 @@ limit_z = 3 * sigma_z
 wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'])
-wake_field = PyPLINEDWakeField('Wake0',0,slicer_for_wakefields,waketable)
+wake_field = PyPLINEDWakeField('Wake0',0,1,slicer_for_wakefields,waketable)
 
 damper = TransverseDamper(dampingrate_x=33.0, dampingrate_y=33.0)
 i_oct = 0.0

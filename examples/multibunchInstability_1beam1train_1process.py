@@ -28,8 +28,8 @@ from PyPLINE.PyPLINEDWakeField import PyPLINEDWakeField
 
 context = xo.ContextCpu(omp_num_threads=0)
 myRank = MPI.COMM_WORLD.Get_rank()
-nTurn = int(1E5)
-nBunch = 8
+nTurn = int(1E4)
+n_bunch = 8
 bunch_spacing = 25E-9
 bunch_intensity = 1.8E11
 n_macroparticles = int(1E4)
@@ -60,8 +60,9 @@ n_slices_wakes = 200
 limit_z = 3 * sigma_z
 wakefile = '/afs/cern.ch/work/x/xbuffat/PyCOMPLETE/PyPLINE/examples/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
-waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'])
-wake_field = PyPLINEDWakeField('Wake',0,slicer_for_wakefields, waketable)
+n_turns_wake = 1
+waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'],n_turns_wake=n_bunch*n_turns_wake) # Trick to remain compatible with PyHEADTAIL single bunch version (n_turn_wake is in fact the maximum number of slice sets that will be taken into account in WakeKick._accumulate_source_signal). The attribute name should be changed in PyHEADTAIL.
+wake_field = PyPLINEDWakeField('Wake',0,n_turns_wake,slicer_for_wakefields, waketable)
 
 #damper = TransverseDamper(dampingrate_x=33.0, dampingrate_y=33.0)
 i_oct = 0.0
@@ -85,7 +86,7 @@ arc = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = beta_x, disp_x_0 = 0.0
 #                           detx_x = detx_x,detx_y = detx_y,dety_y = detx_x, dety_x = detx_y,
 #                           energy_ref_increment=0.0,energy_increment=0)
 particles_list = []
-for bunch_number in range(nBunch):
+for bunch_number in range(n_bunch):
     particles_list.append(PyPLINEDParticles(circumference=circumference,particlenumber_per_mp=bunch_intensity/n_macroparticles,
                              _context=context,
                              q0 = 1,
@@ -97,13 +98,13 @@ for bunch_number in range(nBunch):
                              py=np.sqrt(normemit/beta_y/gamma/betar)*np.random.randn(n_macroparticles),
                              zeta=sigma_z*np.random.randn(n_macroparticles),
                              delta=sigma_delta*np.random.randn(n_macroparticles),
-                             name=f'B1b{bunch_number}',rank=0,number=bunch_number,delay=bunch_number*bunch_spacing
+                             name=f'B1b{bunch_number}',rank=bunch_number%2,number=bunch_number,delay=bunch_number*bunch_spacing
                              )
                     )
 
-for bunch_number in range(nBunch):
+for bunch_number in range(n_bunch):
     partnerIDs = []
-    for partner_bunch_number in range(nBunch):
+    for partner_bunch_number in range(n_bunch):
         if partner_bunch_number != bunch_number:
             partnerIDs.append(particles_list[partner_bunch_number].ID)
     particles_list[bunch_number].addElementToPipeline(arc)

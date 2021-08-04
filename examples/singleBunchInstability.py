@@ -58,7 +58,7 @@ i_oct = 300.0 # Ampere in LHC focusing octupoles (ATS optics, telescopic factor 
 n_slices_wakes = 200
 n_turns_wake = 1
 limit_z = 3 * sigma_z
-wakefile = '/afs/cern.ch/work/x/xbuffat/PyCOMPLETE/PyPLINE/examples/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
+wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'])
 wake_field = PyPLINEDWakeField('Wake0',0,n_turns_wake,slicer_for_wakefields,waketable)

@@ -29,7 +29,7 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
                 print('Cannot compute avg on fake beam')
             mean_x, sigma_x = xf.mean_and_std(beam.x)
             mean_y, sigma_y = xf.mean_and_std(beam.y)
-            params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.num_particles])
+            params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.num_particles*beam.particlenumber_per_mp])
             self._comm.Isend(params,dest=partners_IDs[0].rank,tag=tag)
             self._pending_requests[key] = beam.period
 

@@ -53,7 +53,7 @@ emit_s = 4*np.pi*sigma_z*sigma_delta*p0/constants.e # eVs for PyHEADTAIL
 n_slices_wakes = 200
 n_turns_wake = 1
 limit_z = 3 * sigma_z
-wakefile = '/afs/cern.ch/work/x/xbuffat/PyCOMPLETE/PyPLINE/examples/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
+wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'],n_turns_wake=n_bunch*n_turns_wake) # Trick to remain compatible with PyHEADTAIL single bunch version (n_turn_wake is in fact the maximum number of slice sets that will be taken into account in WakeKick._accumulate_source_signal). The attribute name should be changed in PyHEADTAIL.
 wake_field = PyPLINEDWakeField('Wake',0,n_turns_wake,slicer_for_wakefields, waketable)
@@ -91,9 +91,9 @@ for bunch_number in range(n_bunch):
     for partner_bunch_number in range(n_bunch):
         if partner_bunch_number != bunch_number:
             partners_IDs.append(particles_list[partner_bunch_number].ID)
-    particles_list[bunch_number].addElementToPipeline(arc)
-    particles_list[bunch_number].addElementToPipeline(wake_field,partners_IDs)
-    particles_list[bunch_number].addElementToPipeline(BunchMonitor(filename=f'Multibunch_B1b{bunch_number}',n_steps=n_turn))
+    particles_list[bunch_number].add_element_to_pipeline(arc)
+    particles_list[bunch_number].add_element_to_pipeline(wake_field,partners_IDs)
+    particles_list[bunch_number].add_element_to_pipeline(BunchMonitor(filename=f'Multibunch_B1b{bunch_number}',n_steps=n_turn))
 
 # determining the bunch that will be tracking by this process
 my_particles_list = []
@@ -124,6 +124,7 @@ print(f'Rank {my_rank} finished tracking')
 
 if my_rank == 0:
     from matplotlib import pyplot as plt
+    import os,h5py
 
     for bunch_number in range(n_bunch):
         file_name = f'Multibunch_B1b{bunch_number}.h5'

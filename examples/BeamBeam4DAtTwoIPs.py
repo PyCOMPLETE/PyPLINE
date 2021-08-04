@@ -2,7 +2,8 @@ from mpi4py import MPI
 
 import time
 import numpy as np
-from scipy import constants as cst
+from scipy import constants
+proton_mass = constants.value('proton mass energy equivalent in MeV')*1E6
 
 import xobjects as xo
 import xtrack as xt
@@ -17,9 +18,9 @@ context = xo.ContextCpu(omp_num_threads=0)
 my_rank = MPI.COMM_WORLD.Get_rank()
 
 n_turn = int(1E4)
-n_macroparticles = int(1E6)
-number_of_particles = 2E11
-energy = 7E3
+n_macroparticles = int(1E4)
+bunch_intensity = 2E11
+gamma = 7E12/proton_mass
 epsn_x = 2E-6
 epsn_y = 2E-6
 betastar_x = 1.0
@@ -28,27 +29,30 @@ sigma_z = 0.08
 sigma_delta = 1E-4
 Qx = 0.31
 Qy = 0.32
-gamma = 7E3/0.938
-betar = np.sqrt(1. - gamma**-2)
-p0c = np.sqrt(gamma**2 - 1) * cst.m_p * cst.c
-eps_geo_x = epsn_x / (betar * gamma)
-eps_geo_y = epsn_y / (betar * gamma)
 
 print('Generating one bunch per beam')
 particles_B1b1 = PyPLINEDParticles(_context=context,
-                     x=np.sqrt(eps_geo_x*betastar_x)*(np.random.randn(n_macroparticles)),
-                     px=np.sqrt(eps_geo_x/betastar_x)*np.random.randn(n_macroparticles),
-                     y=np.sqrt(eps_geo_y*betastar_y)*(np.random.randn(n_macroparticles)),
-                     py=np.sqrt(eps_geo_y/betastar_y)*np.random.randn(n_macroparticles),
+                     particlenumber_per_mp=bunch_intensity/n_macroparticles,
+                     q0 = 1,
+                     mass0 = proton_mass,
+                     gamma0 = gamma,
+                     x=np.sqrt(epsn_x*betastar_x/gamma)*(np.random.randn(n_macroparticles)),
+                     px=np.sqrt(epsn_x/betastar_x/gamma)*np.random.randn(n_macroparticles),
+                     y=np.sqrt(epsn_y*betastar_y/gamma)*(np.random.randn(n_macroparticles)),
+                     py=np.sqrt(epsn_y/betastar_y/gamma)*np.random.randn(n_macroparticles),
                      zeta=sigma_z*np.random.randn(n_macroparticles),
                      delta=sigma_delta*np.random.randn(n_macroparticles),
                      name='B1b1',rank=0,number=0,
                      )
 particles_B2b1 = PyPLINEDParticles(_context=context,
-                     x=np.sqrt(eps_geo_x*betastar_x)*(np.random.randn(n_macroparticles)),
-                     px=np.sqrt(eps_geo_x/betastar_x)*np.random.randn(n_macroparticles),
-                     y=np.sqrt(eps_geo_y*betastar_y)*(np.random.randn(n_macroparticles)),
-                     py=np.sqrt(eps_geo_y/betastar_y)*np.random.randn(n_macroparticles),
+                     particlenumber_per_mp=bunch_intensity/n_macroparticles,
+                     q0 = 1,
+                     mass0 = proton_mass,
+                     gamma0 = gamma,
+                     x=np.sqrt(epsn_x*betastar_x/gamma)*(np.random.randn(n_macroparticles)),
+                     px=np.sqrt(epsn_x/betastar_x/gamma)*np.random.randn(n_macroparticles),
+                     y=np.sqrt(epsn_y*betastar_y/gamma)*(np.random.randn(n_macroparticles)),
+                     py=np.sqrt(epsn_y/betastar_y/gamma)*np.random.randn(n_macroparticles),
                      zeta=sigma_z*np.random.randn(n_macroparticles),
                      delta=sigma_delta*np.random.randn(n_macroparticles),
                      name='B2b1',rank=1,number=0,
@@ -60,10 +64,10 @@ beamBeam_IP2 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP
 
 if my_rank == 0:
     my_bunch = particles_B1b1
-    beamBeam_IP1.setQ0(particles_B2b1.q0)
-    beamBeam_IP1.setBeta0(particles_B2b1.beta0[0])
-    beamBeam_IP2.setQ0(particles_B2b1.q0)
-    beamBeam_IP2.setBeta0(particles_B2b1.beta0[0])
+    beamBeam_IP1.set_q0(particles_B2b1.q0)
+    beamBeam_IP1.set_beta0(particles_B2b1.beta0[0])
+    beamBeam_IP2.set_q0(particles_B2b1.q0)
+    beamBeam_IP2.set_beta0(particles_B2b1.beta0[0])
     print('Instanciating B1 arcs')
     arc12_b1 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
                             alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
@@ -84,10 +88,10 @@ if my_rank == 0:
 
 elif my_rank == 1:
     my_bunch = particles_B2b1
-    beamBeam_IP1.setQ0(particles_B1b1.q0)
-    beamBeam_IP1.setBeta0(particles_B1b1.beta0[0])
-    beamBeam_IP2.setQ0(particles_B1b1.q0)
-    beamBeam_IP2.setBeta0(particles_B1b1.beta0[0])
+    beamBeam_IP1.set_q0(particles_B1b1.q0)
+    beamBeam_IP1.set_beta0(particles_B1b1.beta0[0])
+    beamBeam_IP2.set_q0(particles_B1b1.q0)
+    beamBeam_IP2.set_beta0(particles_B1b1.beta0[0])
     print('Instanciating B2 arcs')
     arc12_b2 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
                                 alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
@@ -121,5 +125,37 @@ while my_bunch.period < n_turn:
             turn_at_last_print = my_bunch.period
             time_at_last_print = time.time()
     my_bunch.step()
+print(f'Rank {my_rank} finished tracking')
 
+if my_rank == 0:
+    from matplotlib import pyplot as plt
+    import os,h5py
+
+    for beam_number in [1,2]:
+        file_name = f'BeamBeam_B{beam_number}b1.h5'
+        if os.path.exists(file_name):
+            f = h5py.File(file_name, 'r')
+            positions_x = np.array(f.get('Bunch/mean_x'))/np.sqrt(epsn_x*betastar_x/gamma)
+            positions_y = np.array(f.get('Bunch/mean_y'))/np.sqrt(epsn_y*betastar_y/gamma)
+            f.close()
+
+            plt.figure(beam_number)
+            plt.plot(np.arange(len(positions_x))*1E-3,positions_x,'x')
+            plt.xlabel('Turn [$10^{3}$]')
+            plt.ylabel(f'Beam {beam_number} horizontal position [$\sigma$]')
+            plt.figure(10+beam_number)
+            plt.plot(np.arange(len(positions_y))*1E-3,positions_y,'x')
+            plt.xlabel('Turn [$10^{3}$]')
+            plt.ylabel(f'Beam {beam_number} vertical position [$\sigma$]')
+
+            plt.figure(20+beam_number)
+            freqs = np.fft.fftshift(np.fft.fftfreq(len(positions_x)))
+            mask = freqs > 0
+            myFFT = np.fft.fftshift(np.fft.fft(positions_x))
+            plt.semilogy(freqs[mask],np.abs(myFFT[mask]))
+            myFFT = np.fft.fftshift(np.fft.fft(positions_y))
+            plt.semilogy(freqs[mask],np.abs(myFFT[mask]))
+            plt.xlabel('Tune')
+            plt.ylabel('Amplitude')
+    plt.show()
 

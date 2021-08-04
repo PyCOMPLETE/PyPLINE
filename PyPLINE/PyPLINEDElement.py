@@ -6,40 +6,40 @@ class PyPLINEDElement:
 
     def __init__(self,name='',number=-1,*args, **kwargs):
         #print(f'New PyPLINED element {name}: {number}')
-        self.isPyPLINED = True
+        self.is_PyPLINED = True
         self.name = name
         self.number = number
         self._comm = MPI.COMM_WORLD
         self.rank = self._comm.Get_rank()
 
         #TODO update according to input?
-        self.maxNumberOfElement = 1000
-        self.maxNumberOfBunchesPerCore = 100
+        self.max_n_elements = 1000
+        self.max_bunch_per_rank = 100
 
-        self._pendingRequests = {}
+        self._pending_requests = {}
 
-    def getMessageTag(self,senderID,recieverID):
-        return self.number+self.maxNumberOfElement*senderID.number+self.maxNumberOfElement*self.maxNumberOfBunchesPerCore*recieverID.number
+    def get_message_tag(self,sender_ID,reciever_ID):
+        return self.number+self.max_n_elements*sender_ID.number+self.max_n_elements*self.max_bunch_per_rank*reciever_ID.number
 
-    def getMessageKey(self,senderID,recieverID):
-        return f'{senderID.number}_{recieverID.number}'
+    def get_message_key(self,sender_ID,reciever_ID):
+        return f'{sender_ID.number}_{reciever_ID.number}'
     
     @abstractmethod
-    def sendMessages(self, beam, partnerIDs):
+    def send_messages(self, beam, partners_IDs):
         '''
         Attempts to send a non-blocking message to partners. Does nothing is the message was aleady send
         '''
         pass
 
     @abstractmethod
-    def messagesAreReady(self, beam, partnerIDs):
+    def messages_are_ready(self, beam_ID, partners_IDs):
         '''
         check whether the partners have send messages.
         '''
         pass
 
     @abstractmethod
-    def track(self, beam, partnerIDs):
+    def track(self, beam, partners_IDs):
         '''
         Collect messages from partners (blocking) and perform tracking of beam through this Element.
         '''

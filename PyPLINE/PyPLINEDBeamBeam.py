@@ -15,32 +15,32 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
     def setBeta0(self,beta0):
         self.tracker.update(beta0=beta0)
 
-    def sendMessages(self,beam, partnerIDs):
-        tag = self.getMessageTag(beam.ID,partnerIDs[0])
-        key = self.getMessageKey(beam.ID,partnerIDs[0])
-        requestIsPending = False
-        if key in self._pendingRequests.keys():
-            if beam.period == self._pendingRequests[key]:
+    def send_messages(self,beam, partners_IDs):
+        tag = self.get_message_tag(beam.ID,partners_IDs[0])
+        key = self.get_message_key(beam.ID,partners_IDs[0])
+        request_is_pending = False
+        if key in self._pending_requests.keys():
+            if beam.period == self._pending_requests[key]:
                 #print('There is a pending request with key',key,'at turn',beam.period)
-                requestIsPending = True
-        if not requestIsPending:
-            #print(beam.ID.name,'sending avg to',partnerIDs[0].name,'with tag',tag)
-            if not beam.isReal:
+                request_is_pending = True
+        if not request_is_pending:
+            #print(beam.ID.name,'sending avg to',partners_IDs[0].name,'with tag',tag)
+            if not beam.is_real:
                 print('Cannot compute avg on fake beam')
             mean_x, sigma_x = xf.mean_and_std(beam.x)
             mean_y, sigma_y = xf.mean_and_std(beam.y)
             params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.num_particles])
-            self._comm.Isend(params,dest=partnerIDs[0].rank,tag=tag)
-            self._pendingRequests[key] = beam.period
+            self._comm.Isend(params,dest=partners_IDs[0].rank,tag=tag)
+            self._pending_requests[key] = beam.period
 
-    def messagesAreReady(self,beamID, partnerIDs):
-        return self._comm.Iprobe(source=partnerIDs[0].rank, tag=self.getMessageTag(partnerIDs[0],beamID))
+    def messages_are_ready(self,beam_ID, partners_IDs):
+        return self._comm.Iprobe(source=partners_IDs[0].rank, tag=self.get_message_tag(partners_IDs[0],beam_ID))
 
-    def track(self, beam, partnerIDs):
-        tag = self.getMessageTag(partnerIDs[0],beam.ID)
+    def track(self, beam, partners_IDs):
+        tag = self.get_message_tag(partners_IDs[0],beam.ID)
         params =  np.empty(5, dtype=np.float64)
-        self._comm.Recv(params,source=partnerIDs[0].rank,tag=tag)
-        #print(beam.ID.name,'revieved avg from',partnerIDs[0].name,'with tag',tag,params)
+        self._comm.Recv(params,source=partners_IDs[0].rank,tag=tag)
+        #print(beam.ID.name,'revieved avg from',partners_IDs[0].name,'with tag',tag,params)
         self.tracker.update(mean_x=params[0],mean_y=params[1],sigma_x=params[2],sigma_y=params[3],n_particles=params[4])
         self.tracker.track(beam)
     

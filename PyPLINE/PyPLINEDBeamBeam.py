@@ -8,6 +8,7 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
     def __init__(self,name,number,_context=None,_buffer=None,_offset=None,min_sigma_diff=1e-10):
         PyPLINEDElement.__init__(self,name,number)
         self.tracker = xf.BeamBeamBiGaussian2D(_context=_context,_buffer=_buffer,_offset=_offset,min_sigma_diff=min_sigma_diff,beta0=0.9)
+        self._recv_buffer = np.zeros(5,dtype=np.float64)
 
     def set_q0(self,q0):
         self.tracker.update(q0=q0)
@@ -29,7 +30,7 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
                 print('Cannot compute avg on fake beam')
             mean_x, sigma_x = xf.mean_and_std(beam.x)
             mean_y, sigma_y = xf.mean_and_std(beam.y)
-            params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.num_particles*beam.particlenumber_per_mp])
+            params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.num_particles*beam.particlenumber_per_mp],dtype=np.float64)
             self._comm.Isend(params,dest=partners_IDs[0].rank,tag=tag)
             self._pending_requests[key] = beam.period
 
@@ -38,10 +39,9 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
 
     def track(self, beam, partners_IDs):
         tag = self.get_message_tag(partners_IDs[0],beam.ID)
-        params =  np.empty(5, dtype=np.float64)
-        self._comm.Recv(params,source=partners_IDs[0].rank,tag=tag)
-        #print(beam.ID.name,'revieved avg from',partners_IDs[0].name,'with tag',tag,params)
-        self.tracker.update(mean_x=params[0],mean_y=params[1],sigma_x=params[2],sigma_y=params[3],n_particles=params[4])
+        self._comm.Recv(self._recv_buffer,source=partners_IDs[0].rank,tag=tag)
+        #print(beam.ID.name,'revieved avg from',partners_IDs[0].name,'with tag',tag,self._recv_buffer)
+        self.tracker.update(mean_x=self._recv_buffer[0],mean_y=self._recv_buffer[1],sigma_x=self._recv_buffer[2],sigma_y=self._recv_buffer[3],n_particles=self._recv_buffer[4])
         self.tracker.track(beam)
     
 

@@ -7,5 +7,7 @@ S. Furuseth and X. Buffat. Parallel high-performance multi-beam multi-bunch simu
 ## Example of run command with mpi4py:
 mpiexec -n 2 python -m mpi4py BeamBeam4DAtTwoIPs.py
 
-Note: On some machines H5 locking mechanism does not work, it can be disabled with:
+Note:
+ - h5py from PyHEADTAIL main branch does not support MPI. Either use a multibunch branch or don't use PyHEADTAIL monitors 
+ - On some machines H5 locking mechanism does not work, it can be disabled with:
 export HDF5_USE_FILE_LOCKING='FALSE'

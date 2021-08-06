@@ -23,19 +23,17 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
 
         self._attributes_to_buffer = ['n_macroparticles_per_slice']
         self._attributes_to_buffer.extend(self._statistics)
-        buffer_size = self.slicer.n_slices*len(self._attributes_to_buffer)+2
-        self._send_buffer = np.zeros(buffer_size,dtype=float)
-        self._recv_buffer = np.zeros(buffer_size,dtype=float)
+        self._buffer_size = self.slicer.n_slices*len(self._attributes_to_buffer)+2
+        self._recv_buffer = np.zeros(self._buffer_size,dtype=float)
 
     def _slice_set_to_buffer(self,slice_set,delay):
+        send_buffer = np.zeros(self._buffer_size,dtype=float)
         k = 0
         for i in range(len(self._attributes_to_buffer)):
-            self._send_buffer[k:k+len(getattr(slice_set,self._attributes_to_buffer[i]))] = getattr(slice_set,self._attributes_to_buffer[i])
+            send_buffer[k:k+len(getattr(slice_set,self._attributes_to_buffer[i]))] = getattr(slice_set,self._attributes_to_buffer[i])
             k += self.slicer.n_slices
-        self._send_buffer[-2] = slice_set.beta
-        self._send_buffer[-1] = delay
-
-        self.tmp = copy.deepcopy(slice_set.slice_index_of_particle)
+        send_buffer[-2] = slice_set.beta
+        send_buffer[-1] = delay
 
     def _slice_set_from_buffer(self,slice_set0):
         slice_set_kwargs = {'z_bins':slice_set0.z_bins,'mode':slice_set0.mode}

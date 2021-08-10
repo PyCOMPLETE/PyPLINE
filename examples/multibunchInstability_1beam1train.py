@@ -90,8 +90,9 @@ my_particles_list = []
 for particles in particles_list:
     if particles.is_real:
         partners_IDs = []
+        my_bunch_number = int(particles.ID.name.split('b')[1])
         for partner_bunch_number in range(n_bunch):
-            if partner_bunch_number != bunch_number:
+            if partner_bunch_number != my_bunch_number:
                 partners_IDs.append(particles_list[partner_bunch_number].ID)
         particles.add_element_to_pipeline(arc)
         particles.add_element_to_pipeline(wake_field,partners_IDs)

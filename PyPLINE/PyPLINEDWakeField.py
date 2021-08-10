@@ -34,6 +34,7 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
             k += self.slicer.n_slices
         send_buffer[-2] = slice_set.beta
         send_buffer[-1] = delay
+        return send_buffer
 
     def _slice_set_from_buffer(self,slice_set0):
         slice_set_kwargs = {'z_bins':slice_set0.z_bins,'mode':slice_set0.mode}
@@ -67,8 +68,8 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
                 for partner_ID in partners_IDs:
                     tag = self.get_message_tag(beam.ID,partner_ID)
                     #print(beam.ID.name,'sending slice set to',partner_ID.name,'with tag',tag,flush=True)
-                    self._slice_set_to_buffer(slice_set,beam.delay)
-                    self._comm.Isend(self._send_buffer,dest=partner_ID.rank,tag=tag)
+                    send_buffer = self._slice_set_to_buffer(slice_set,beam.delay)
+                    self._comm.Isend(send_buffer,dest=partner_ID.rank,tag=tag)
 
     def messages_are_ready(self,beam_ID, partners_IDs):
         for partner_ID in partners_IDs:

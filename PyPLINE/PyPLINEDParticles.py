@@ -12,11 +12,10 @@ class PyPLINEDParticlesID:
 class PyPLINEDParticles(xt.Particles):
 
     def __init__(self,name,rank,number,delay=0.0,*args, **kwargs):
-        super(PyPLINEDParticles, self).__init__(*args, **kwargs)
         self._comm = MPI.COMM_WORLD
         self.is_real = self._comm.Get_rank() == rank
         if self.is_real:
-            super().__init__(*args, **kwargs)
+            super(PyPLINEDParticles, self).__init__(*args, **kwargs)
         self._pipeline = []
         self._partners_IDs = []
         self.delay = delay
@@ -25,10 +24,10 @@ class PyPLINEDParticles(xt.Particles):
         self.period = 0
         #self.waitingTime = 0.0
 
-        if self.is_real:
-            print('I m bunch',name,'on rank',self._comm.Get_rank(),'and I m real')
-        else:
-            print('I m bunch',name,'on rank',self._comm.Get_rank(),'and I m fake')
+        #if self.is_real:
+        #    print('I m bunch',name,'on rank',self._comm.Get_rank(),'and I m real')
+        #else:
+        #    print('I m bunch',name,'on rank',self._comm.Get_rank(),'and I m fake')
 
     def add_element_to_pipeline(self,element,partners_IDs=[]):
         self._pipeline.append(element)

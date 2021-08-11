@@ -24,17 +24,18 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
         self._attributes_to_buffer = ['n_macroparticles_per_slice']
         self._attributes_to_buffer.extend(self._statistics)
         self._buffer_size = self.slicer.n_slices*len(self._attributes_to_buffer)+2
-        self._recv_buffer = np.zeros(self._buffer_size,dtype=float)
+        self._recv_buffer = np.zeros(self._buffer_size,dtype=np.float64)
+        self._send_buffers = {}
 
-    def _slice_set_to_buffer(self,slice_set,delay):
-        send_buffer = np.zeros(self._buffer_size,dtype=float)
+    def _slice_set_to_buffer(self,slice_set,delay,key):
+        if key not in self._send_buffers.keys():
+            self._send_buffers[key] = np.zeros(self._buffer_size,dtype=np.float64)
         k = 0
         for i in range(len(self._attributes_to_buffer)):
-            send_buffer[k:k+len(getattr(slice_set,self._attributes_to_buffer[i]))] = getattr(slice_set,self._attributes_to_buffer[i])
+            self._send_buffers[key][k:k+len(getattr(slice_set,self._attributes_to_buffer[i]))] = getattr(slice_set,self._attributes_to_buffer[i])
             k += self.slicer.n_slices
-        send_buffer[-2] = slice_set.beta
-        send_buffer[-1] = delay
-        return send_buffer
+        self._send_buffers[key][-2] = slice_set.beta
+        self._send_buffers[key][-1] = delay
 
     def _slice_set_from_buffer(self,slice_set0):
         slice_set_kwargs = {'z_bins':slice_set0.z_bins,'mode':slice_set0.mode}
@@ -46,6 +47,9 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
         slice_set_kwargs['n_macroparticles_per_slice'] = arrays_recvd['n_macroparticles_per_slice'].astype(int)
         slice_set_kwargs['slice_index_of_particle'] = None
         slice_set_kwargs['beam_parameters'] = {'beta':self._recv_buffer[-2]}
+        #TODO there seem to be an issue, sometimes beta is not properly recieved (it is sent correctly though)
+        #     it could be that some of data in the slice set is corrupted as well
+        #TODO fill_value=0.0,bounds_error=False was added to interp1d in wakes.py, but shouldn't be needed
         slice_set = SliceSet(**slice_set_kwargs)
         for statistic in self._statistics:
             setattr(slice_set,statistic,arrays_recvd[statistic])
@@ -67,9 +71,10 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
                 self._pending_requests[key] = beam.period
                 for partner_ID in partners_IDs:
                     tag = self.get_message_tag(beam.ID,partner_ID)
+                    key = self.get_message_key(beam.ID,partner_ID)
                     #print(beam.ID.name,'sending slice set to',partner_ID.name,'with tag',tag,flush=True)
-                    send_buffer = self._slice_set_to_buffer(slice_set,beam.delay)
-                    self._comm.Isend(send_buffer,dest=partner_ID.rank,tag=tag)
+                    self._slice_set_to_buffer(slice_set,beam.delay,key)
+                    self._comm.Isend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
 
     def messages_are_ready(self,beam_ID, partners_IDs):
         for partner_ID in partners_IDs:

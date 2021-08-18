@@ -25,45 +25,25 @@ export HDF5_USE_FILE_LOCKING='FALSE'
 ### Installation
 
 cd ~
-
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-
 bash Miniconda3-latest-Linux-x86_64.sh
-
 source miniconda3/bin/activate
-
 pip install numpy scipy matplotlib cython
-
 module load mpi/mvapich2/2.3
-
 env MPICC=/usr/local/mpi/mvapich2/2.3/bin/mpicc python -m pip install mpi4py
-
 git clone https://github.com/xsuite/xobjects
-
 pip install -e xobjects
-
 git clone https://github.com/xsuite/xline
-
 pip install -e xline
-
 git clone https://github.com/xsuite/xpart
-
 pip install -e xpart
-
 git clone https://github.com/xsuite/xtrack
-
 pip install -e xtrack
-
 git clone https://github.com/xsuite/xfields
-
 pip install -e xfields
-
 git clone https://github.com/PyCOMPLETE/PyHEADTAIL.git
-
 git install -e PyHEADTAIL
-
 git clone https://github.com/PyCOMPLETE/PyPLINE.git
-
 git install -e PyPLINE
 
 ### Example job file

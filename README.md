@@ -5,8 +5,9 @@ PyPLINE implements an asynchronous pipeline parallelisation based on MPI featuri
 S. Furuseth and X. Buffat. Parallel high-performance multi-beam multi-bunch simulations. Computer Physics Communications, 244, 06 2019 http://dx.doi.org/10.1016/j.cpc.2019.06.006
 
 ## Example of run command with mpi4py:
+```bash
 mpiexec -n 2 python -m mpi4py BeamBeam4DAtTwoIPs.py
-
+```
 Note:
  - h5py from PyHEADTAIL main branch does not support MPI. Either use a multibunch branch or don't use PyHEADTAIL monitors 
  - On some machines H5 locking mechanism does not work, it can be disabled with:
@@ -50,29 +51,21 @@ git install -e PyPLINE
 ```
 
 ### Example job file
-
+```bash
 #!/bin/bash
 
 #SBATCH --partition inf-long
-
 #SBATCH --nodes 2
-
 #SBATCH --ntasks-per-node 40
-
 #SBATCH --cpus-per-task 1
-
 #SBATCH --time 10:00:00
 
 module load mpi/mvapich2/2.3
-
 source ~/miniconda3_mvapich2/bin/activate
-
 export MV2_ENABLE_AFFINITY=0
-
 export LD_PRELOAD=/usr/local/mpi/mvapich2/2.3/lib64/libmpi.so
-
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 mpirun -np $SLURM_NTASKS python -m mpi4py mycode.py
-
+```
 

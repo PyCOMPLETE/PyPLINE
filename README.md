@@ -37,9 +37,9 @@ git clone https://github.com/PyCOMPLETE/PyPLINE.git
 git install -e PyPLINE
 ```
 
-## Run
+## Execution
 ```bash
-mpiexec -np 2 python -m mpi4py BeamBeam4DAtTwoIPs.py
+mpiexec -np 2 python -m mpi4py mycode.py
 ```
 Note:
  - h5py from PyHEADTAIL main branch does not support MPI. Either use a multibunch branch or don't use PyHEADTAIL monitors 
@@ -48,8 +48,7 @@ Note:
 export HDF5_USE_FILE_LOCKING='FALSE'
 ```
 
-
-### Slurm job file for CERN's HPC cluster (using miniconda and MVAPICH2)
+### Example slurm job file for CERN's HPC cluster (using miniconda/MVAPICH2 installation)
 
 ```bash
 #!/bin/bash

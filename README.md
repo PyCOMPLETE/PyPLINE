@@ -31,9 +31,8 @@ cd ~
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
 source miniconda3/bin/activate
-pip install numpy scipy matplotlib cython
 module load mpi/mvapich2/2.3
-env MPICC=/usr/local/mpi/mvapich2/2.3/bin/mpicc python -m pip install mpi4py
+pip install numpy scipy cython mpi4py
 git clone https://github.com/xsuite/xobjects
 pip install -e xobjects
 git clone https://github.com/xsuite/xline

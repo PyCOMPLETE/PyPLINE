@@ -12,7 +12,6 @@ xt.enable_pyheadtail_interface()
 
 from PyHEADTAIL.particles.slicing import UniformBinSlicer
 from PyHEADTAIL.impedances.wakes import WakeTable
-from PyHEADTAIL.monitors.monitors import BunchMonitor
 
 from PyPLINE.PyPLINEDBeamBeam import PyPLINEDBeamBeam
 from PyPLINE.PyPLINEDParticles import PyPLINEDParticles
@@ -22,8 +21,8 @@ context = xo.ContextCpu(omp_num_threads=0)
 n_available_procs = MPI.COMM_WORLD.Get_size()
 my_rank = MPI.COMM_WORLD.Get_rank()
 
-n_turn = int(1E3)
-n_bunch = 160
+n_turn = int(1E4)
+n_bunch = 4
 bunch_spacing = 25E-9
 bunch_intensity = 1.8E11
 n_macroparticles = int(1E4)
@@ -54,7 +53,7 @@ emit_s = 4*np.pi*sigma_z*sigma_delta*p0/constants.e # eVs for PyHEADTAIL
 n_slices_wakes = 200
 n_turns_wake = 1
 limit_z = 3 * sigma_z
-wakefile = '/hpcscratch/user/xbuffat/LHCMultibunch/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
+wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'],n_turns_wake=n_bunch*n_turns_wake) # Trick to remain compatible with PyHEADTAIL single bunch version (n_turn_wake is in fact the maximum number of slice sets that will be taken into account in WakeKick._accumulate_source_signal). The attribute name should be changed in PyHEADTAIL.
 wake_field = PyPLINEDWakeField('Wake',0,n_turns_wake,slicer_for_wakefields, waketable)
@@ -72,9 +71,9 @@ arc = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = beta_x, disp_x_0 = 0.0
 particles_dict = {}
 for beam_number in [1,2]:
     for bunch_number in range(n_bunch):
-        rank = (beam_number*bunch_number)%n_available_procs
-        name = f'B{beam_number}b{bunch_number}'
         number = (beam_number-1)*n_bunch+bunch_number
+        rank = number%n_available_procs
+        name = f'B{beam_number}b{bunch_number}'
         print(f'Instanciating {name} with number {number} on rank {rank}',flush=True)
         particles_dict[name] = PyPLINEDParticles(circumference=circumference,particlenumber_per_mp=bunch_intensity/n_macroparticles,
                                  _context=context,
@@ -101,16 +100,21 @@ for particles in particles_dict.values():
         my_beam_number = int(particles.ID.name.split('b')[0].split('B')[1])
         my_bunch_number = int(particles.ID.name.split('b')[1])
         if my_beam_number == 1:
-            partner_name = f'B2b{my_bunch_number}'
+            partner_beam_number = 2
         elif my_beam_number == 2:
-            partner_name = f'B1b{my_bunch_number}'
+            partner_beam_number = 1
         else:
             print(f'ERROR: {my_beam_number} is not an acceptable beam number')
             exit()
-        print(f'{particles.ID.name} collides with {particles_dict[partner_name].ID.name}')
-        particles.add_element_to_pipeline(beamBeam_IP1,[particles_dict[partner_name].ID])
+        for partner_bunch_number in range(n_bunch):
+            partner_name = f'B{partner_beam_number}b{partner_bunch_number}'
+            print(f'{particles.ID.name} collides with {particles_dict[partner_name].ID.name}')
+            particles.add_element_to_pipeline(beamBeam_IP1,[particles_dict[partner_name].ID])
         particles.add_element_to_pipeline(arc)
-        particles.add_element_to_pipeline(beamBeam_IP2,[particles_dict[partner_name].ID])
+        for partner_bunch_number in range(n_bunch):
+            partner_name = f'B{partner_beam_number}b{partner_bunch_number}'
+            print(f'{particles.ID.name} collides with {particles_dict[partner_name].ID.name}')
+            particles.add_element_to_pipeline(beamBeam_IP2,[particles_dict[partner_name].ID])
         partners_IDs = []
         for partner_bunch_number in range(n_bunch):
             partner_name = f'B{my_beam_number}b{partner_bunch_number}'
@@ -118,29 +122,59 @@ for particles in particles_dict.values():
                 partners_IDs.append(particles_dict[partner_name].ID)
         particles.add_element_to_pipeline(arc)
         particles.add_element_to_pipeline(wake_field,partners_IDs)
-        particles.add_element_to_pipeline(BunchMonitor(filename=f'Multibunch_{particles.ID.name}',driver='mpio',n_steps=n_turn))
 
         my_particles_list.append(particles)
 
+beamBeam_IP1.set_q0(1.0)
+beamBeam_IP2.set_q0(1.0)
+beamBeam_IP1.set_beta0(my_particles_list[0].beta0[0])
+beamBeam_IP2.set_beta0(my_particles_list[0].beta0[0])
 
 print('Start tracking')
 abort = False
 turn_at_last_print = 0
 time_at_last_print = time.time()
+multiturn_data = {}
 while not abort:
     at_least_one_bunch_is_active = False
     if my_rank == 0:
-        if particles_dict['B1b0'].period - turn_at_last_print == 1000:
-            timePerTurn = (time.time()-time_at_last_print)/(particles_dict['B1b0'].period - turn_at_last_print)
-            print(f"Turn {particles_dict['B1b0'].period}, time per turn {timePerTurn}s",flush=True)
-            turn_at_last_print = particles_dict['B1b0'].period
+        if my_particles_list[0].period - turn_at_last_print == 1000:
+            timePerTurn = (time.time()-time_at_last_print)/(my_particles_list[0].period - turn_at_last_print)
+            print(f"Turn {my_particles_list[0].period}, time per turn {timePerTurn}s",flush=True)
+            turn_at_last_print = my_particles_list[0].period
             time_at_last_print = time.time()
     for i,particles in enumerate(my_particles_list):
-        if particles.period <= n_turn:
+        if particles.period < n_turn:
+            current_period = particles.period
             particles.step()
             at_least_one_bunch_is_active = True
+            if current_period != particles.period:
+                if particles.ID.name not in multiturn_data.keys():
+                    multiturn_data[particles.ID.name] = np.zeros((n_turn,2),dtype=float)
+                multiturn_data[particles.ID.name][current_period,0] = np.average(particles.x)
+                multiturn_data[particles.ID.name][current_period,1] = np.average(particles.y)       
             
     if not at_least_one_bunch_is_active:
         abort = True
 print(f'Rank {my_rank} finished tracking')
+
+for particles in my_particles_list:
+    np.savetxt(f'multiturndata_{particles.ID.name}.csv',multiturn_data[particles.ID.name],delimiter=',')
+
+if my_rank == 0:
+    from matplotlib import pyplot as plt
+    import os
+    for beam_number in [1,2]:
+        for bunch_number in range(n_bunch):
+            file_name = f'multiturndata_B{beam_number}b{bunch_number}.csv'
+            if os.path.exists(file_name):
+                multiturn_data = np.loadtxt(file_name,delimiter=',')
+                positions_x = multiturn_data[:,0]/np.sqrt(epsn*beta_x/gamma)
+
+                plt.figure(bunch_number+beam_number*100)
+                plt.plot(np.arange(len(positions_x))*1E-3,positions_x,'x')
+                plt.xlabel('Turn [$10^{3}$]')
+                plt.ylabel(f'Bunch {bunch_number} horizontal position [$\sigma$]')
+
+    plt.show()
 

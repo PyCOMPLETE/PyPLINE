@@ -12,7 +12,6 @@ xt.enable_pyheadtail_interface()
 
 from PyHEADTAIL.particles.slicing import UniformBinSlicer
 from PyHEADTAIL.impedances.wakes import WakeTable
-from PyHEADTAIL.monitors.monitors import BunchMonitor
 
 from PyPLINE.PyPLINEDParticles import PyPLINEDParticles
 from PyPLINE.PyPLINEDWakeField import PyPLINEDWakeField
@@ -53,7 +52,7 @@ emit_s = 4*np.pi*sigma_z*sigma_delta*p0/constants.e # eVs for PyHEADTAIL
 n_slices_wakes = 200
 n_turns_wake = 1
 limit_z = 3 * sigma_z
-wakefile = '/afs/cern.ch/work/x/xbuffat/PyCOMPLETE/PyPLINE/examples/wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
+wakefile = 'wakes/wakeforhdtl_PyZbase_Allthemachine_7000GeV_B1_2021_TeleIndex1_wake.dat'
 slicer_for_wakefields = UniformBinSlicer(n_slices_wakes, z_cuts=(-limit_z, limit_z))
 waketable = WakeTable(wakefile, ['time', 'dipole_x', 'dipole_y', 'quadrupole_x', 'quadrupole_y'],n_turns_wake=n_bunch*n_turns_wake) # Trick to remain compatible with PyHEADTAIL single bunch version (n_turn_wake is in fact the maximum number of slice sets that will be taken into account in WakeKick._accumulate_source_signal). The attribute name should be changed in PyHEADTAIL.
 wake_field = PyPLINEDWakeField('Wake',0,n_turns_wake,slicer_for_wakefields, waketable)
@@ -96,7 +95,6 @@ for particles in particles_list:
                 partners_IDs.append(particles_list[partner_bunch_number].ID)
         particles.add_element_to_pipeline(arc)
         particles.add_element_to_pipeline(wake_field,partners_IDs)
-        particles.add_element_to_pipeline(BunchMonitor(filename=f'Multibunch_B1b{bunch_number}',driver='mpio',n_steps=n_turn))
 
         my_particles_list.append(particles)
 
@@ -104,6 +102,7 @@ print('Start tracking')
 abort = False
 turn_at_last_print = 0
 time_at_last_print = time.time()
+multiturn_data = {}
 while not abort:
     at_least_one_bunch_is_active = False
     if my_rank == 0:
@@ -113,27 +112,34 @@ while not abort:
             turn_at_last_print = particles_list[0].period
             time_at_last_print = time.time()
     for particles in my_particles_list:
-        if particles.period <= n_turn:
+        if particles.period < n_turn:
+            current_period = particles.period
             particles.step()
             at_least_one_bunch_is_active = True
-            
+            if current_period != particles.period:
+                if particles.ID.name not in multiturn_data.keys():
+                    multiturn_data[particles.ID.name] = np.zeros((n_turn,2),dtype=float)
+                multiturn_data[particles.ID.name][current_period,0] = np.average(particles.x)
+                multiturn_data[particles.ID.name][current_period,1] = np.average(particles.y)            
     if not at_least_one_bunch_is_active:
         abort = True
 print(f'Rank {my_rank} finished tracking')
 
+for particles in my_particles_list:
+    np.savetxt(f'multiturndata_{particles.ID.name}.csv',multiturn_data[particles.ID.name],delimiter=',')
+
 if my_rank == 0:
     from matplotlib import pyplot as plt
-    import os,h5py
+    import os
 
     for bunch_number in range(n_bunch):
-        file_name = f'Multibunch_B1b{bunch_number}.h5'
+        file_name = f'multiturndata_B1b{bunch_number}.csv'
         if os.path.exists(file_name):
-            f = h5py.File(file_name, 'r')
-            x = np.array(f.get('Bunch/mean_x'))/np.sqrt(epsn*beta_x/gamma/betar)
-            f.close()
+            multiturn_data = np.loadtxt(file_name,delimiter=',')
+            positions_x = multiturn_data[:,0]/np.sqrt(epsn*beta_x/gamma)
 
             plt.figure(bunch_number)
-            plt.plot(np.arange(len(x))*1E-3,x,'x')
+            plt.plot(np.arange(len(positions_x))*1E-3,positions_x,'x')
             plt.xlabel('Turn [$10^{3}$]')
             plt.ylabel(f'Bunch {bunch_number} horizontal position [$\sigma$]')
 

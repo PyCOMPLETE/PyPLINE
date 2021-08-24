@@ -69,7 +69,7 @@ damper = TransverseDamper(dampingrate_x=damper_time, dampingrate_y=damper_time)
 # setting up lattice
 detx_x = 1.4E5*i_oct/550.0
 detx_y = -1.0E5*i_oct/550.0
-arc = xt.LinearTransferMatrixWithDetuning(alpha_x_0 = 0.0, beta_x_0 = beta_x, disp_x_0 = 0.0,
+arc = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = beta_x, disp_x_0 = 0.0,
                            alpha_x_1 = 0.0, beta_x_1 = beta_x, disp_x_1 = 0.0,
                            alpha_y_0 = 0.0, beta_y_0 = beta_y, disp_y_0 = 0.0,
                            alpha_y_1 = 0.0, beta_y_1 = beta_y, disp_y_1 = 0.0,

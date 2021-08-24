@@ -9,7 +9,6 @@ import xobjects as xo
 import xtrack as xt
 import xfields as xf
 xt.enable_pyheadtail_interface() # has to be before the imports such that PyPLINEDParticles inherints the right class
-#from PyHEADTAIL.trackers.transverse_tracking import TransverseSegmentMap
 from PyPLINE.PyPLINEDBeamBeam import PyPLINEDBeamBeam
 from PyPLINE.PyPLINEDParticles import PyPLINEDParticles
 
@@ -128,7 +127,6 @@ turn_at_last_print = 0
 time_at_last_print = time.time()
 multiturn_data = np.zeros((n_turn,2),dtype=float)
 while my_bunch.period < n_turn:
-    abort = True
     if my_rank == 0:
         if my_bunch.period - turn_at_last_print == 1:
             time_per_turn = (time.time()-time_at_last_print)/(my_bunch.period - turn_at_last_print)

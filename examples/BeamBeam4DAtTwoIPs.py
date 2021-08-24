@@ -9,8 +9,7 @@ import xobjects as xo
 import xtrack as xt
 import xfields as xf
 xt.enable_pyheadtail_interface() # has to be before the imports such that PyPLINEDParticles inherints the right class
-from PyHEADTAIL.trackers.transverse_tracking import TransverseSegmentMap
-from PyHEADTAIL.monitors.monitors import BunchMonitor
+#from PyHEADTAIL.trackers.transverse_tracking import TransverseSegmentMap
 from PyPLINE.PyPLINEDBeamBeam import PyPLINEDBeamBeam
 from PyPLINE.PyPLINEDParticles import PyPLINEDParticles
 
@@ -27,8 +26,11 @@ betastar_x = 1.0
 betastar_y = 1.0
 sigma_z = 0.08
 sigma_delta = 1E-4
-Qx = 0.31
-Qy = 0.32
+Q_x = 0.31
+Q_y = 0.32
+beta_s = sigma_z/sigma_delta
+Q_s = 1E-3
+
 
 print('Generating one bunch per beam')
 particles_B1b1 = PyPLINEDParticles(_context=context,
@@ -44,6 +46,7 @@ particles_B1b1 = PyPLINEDParticles(_context=context,
                      delta=sigma_delta*np.random.randn(n_macroparticles),
                      name='B1b1',rank=0,number=0,
                      )
+
 particles_B2b1 = PyPLINEDParticles(_context=context,
                      particlenumber_per_mp=bunch_intensity/n_macroparticles,
                      q0 = 1,
@@ -59,56 +62,63 @@ particles_B2b1 = PyPLINEDParticles(_context=context,
                      )
 
 print('Instanciating beam-beam elements')
-beamBeam_IP1 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP1',number=0)
-beamBeam_IP2 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP2',number=0)
+beamBeam_IP1 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP1',number=1)
+beamBeam_IP2 = PyPLINEDBeamBeam(_context=context,min_sigma_diff=1e-10,name='BBIP2',number=2)
+beamBeam_IP1.set_q0(1.0)
+beamBeam_IP2.set_q0(1.0)
 
 if my_rank == 0:
     my_bunch = particles_B1b1
-    beamBeam_IP1.set_q0(particles_B2b1.q0)
-    beamBeam_IP1.set_beta0(particles_B2b1.beta0[0])
-    beamBeam_IP2.set_q0(particles_B2b1.q0)
-    beamBeam_IP2.set_beta0(particles_B2b1.beta0[0])
+    beamBeam_IP1.set_beta0(particles_B1b1.beta0[0])
+    beamBeam_IP2.set_beta0(particles_B1b1.beta0[0])
     print('Instanciating B1 arcs')
-    arc12_b1 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
-                            alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
-                            alpha_y_s0 = 0.0, beta_y_s0 = 1.0, D_y_s0 = 0.0,
-                            alpha_y_s1 = 0.0, beta_y_s1 = 1.0, D_y_s1 = 0.0,
-                             dQ_x = Qx/2, dQ_y=Qy/2)
-    arc21_b1 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
-                            alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
-                            alpha_y_s0 = 0.0, beta_y_s0 = 1.0, D_y_s0 = 0.0,
-                            alpha_y_s1 = 0.0, beta_y_s1 = 1.0, D_y_s1 = 0.0,
-                             dQ_x = Qx/2, dQ_y=Qy/2)
+    arc12_b1 = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = betastar_x, disp_x_0 = 0.0,
+                           alpha_x_1 = 0.0, beta_x_1 = betastar_x, disp_x_1 = 0.0,
+                           alpha_y_0 = 0.0, beta_y_0 = betastar_y, disp_y_0 = 0.0,
+                           alpha_y_1 = 0.0, beta_y_1 = betastar_y, disp_y_1 = 0.0,
+                           Q_x = Q_x/2, Q_y = Q_y/2,
+                           beta_s = beta_s, Q_s = -Q_s/2,
+                           energy_ref_increment=0.0,energy_increment=0)
+
+    arc21_b1 = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = betastar_x, disp_x_0 = 0.0,
+                           alpha_x_1 = 0.0, beta_x_1 = betastar_x, disp_x_1 = 0.0,
+                           alpha_y_0 = 0.0, beta_y_0 = betastar_y, disp_y_0 = 0.0,
+                           alpha_y_1 = 0.0, beta_y_1 = betastar_y, disp_y_1 = 0.0,
+                           Q_x = Q_x/2, Q_y = Q_y/2,
+                           beta_s = beta_s, Q_s = -Q_s/2,
+                           energy_ref_increment=0.0,energy_increment=0)
+
     print('Builiding B1 pipeline')
     particles_B1b1.add_element_to_pipeline(beamBeam_IP1,[particles_B2b1.ID])
     particles_B1b1.add_element_to_pipeline(arc12_b1)
     particles_B1b1.add_element_to_pipeline(beamBeam_IP2,[particles_B2b1.ID])
     particles_B1b1.add_element_to_pipeline(arc21_b1)
-    particles_B1b1.add_element_to_pipeline(BunchMonitor(filename=f'BeamBeam_B1b1',n_steps=n_turn))
 
 elif my_rank == 1:
     my_bunch = particles_B2b1
-    beamBeam_IP1.set_q0(particles_B1b1.q0)
-    beamBeam_IP1.set_beta0(particles_B1b1.beta0[0])
-    beamBeam_IP2.set_q0(particles_B1b1.q0)
-    beamBeam_IP2.set_beta0(particles_B1b1.beta0[0])
+    beamBeam_IP1.set_beta0(particles_B2b1.beta0[0])
+    beamBeam_IP2.set_beta0(particles_B2b1.beta0[0])
     print('Instanciating B2 arcs')
-    arc12_b2 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
-                                alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
-                                alpha_y_s0 = 0.0, beta_y_s0 = 1.0, D_y_s0 = 0.0,
-                                alpha_y_s1 = 0.0, beta_y_s1 = 1.0, D_y_s1 = 0.0,
-                                dQ_x = Qx/2, dQ_y=Qy/2)
-    arc21_b2 = TransverseSegmentMap(alpha_x_s0 = 0.0, beta_x_s0 = 1.0, D_x_s0 = 0.0,
-                                alpha_x_s1 = 0.0, beta_x_s1 = 1.0, D_x_s1 = 0.0,
-                                alpha_y_s0 = 0.0, beta_y_s0 = 1.0, D_y_s0 = 0.0,
-                                alpha_y_s1 = 0.0, beta_y_s1 = 1.0, D_y_s1 = 0.0,
-                                dQ_x = Qx/2, dQ_y=Qy/2)
+    arc12_b2 = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = betastar_x, disp_x_0 = 0.0,
+                           alpha_x_1 = 0.0, beta_x_1 = betastar_x, disp_x_1 = 0.0,
+                           alpha_y_0 = 0.0, beta_y_0 = betastar_y, disp_y_0 = 0.0,
+                           alpha_y_1 = 0.0, beta_y_1 = betastar_y, disp_y_1 = 0.0,
+                           Q_x = Q_x/2, Q_y = Q_y/2,
+                           beta_s = beta_s, Q_s = -Q_s/2,
+                           energy_ref_increment=0.0,energy_increment=0)
+
+    arc21_b2 = xt.LinearTransferMatrix(alpha_x_0 = 0.0, beta_x_0 = betastar_x, disp_x_0 = 0.0,
+                           alpha_x_1 = 0.0, beta_x_1 = betastar_x, disp_x_1 = 0.0,
+                           alpha_y_0 = 0.0, beta_y_0 = betastar_y, disp_y_0 = 0.0,
+                           alpha_y_1 = 0.0, beta_y_1 = betastar_y, disp_y_1 = 0.0,
+                           Q_x = Q_x/2, Q_y = Q_y/2,
+                           beta_s = beta_s, Q_s = -Q_s/2,
+                           energy_ref_increment=0.0,energy_increment=0)
     print('Builiding B2 pipeline')
     particles_B2b1.add_element_to_pipeline(beamBeam_IP1,[particles_B1b1.ID])
     particles_B2b1.add_element_to_pipeline(arc12_b2)
     particles_B2b1.add_element_to_pipeline(beamBeam_IP2,[particles_B1b1.ID])
     particles_B2b1.add_element_to_pipeline(arc21_b2)
-    particles_B2b1.add_element_to_pipeline(BunchMonitor(filename=f'BeamBeam_B2b1',n_steps=n_turn))
 else:
     print('Exiting useless process with rank {my_rank}')
     exit()
@@ -116,6 +126,7 @@ else:
 print('Start tracking')
 turn_at_last_print = 0
 time_at_last_print = time.time()
+multiturn_data = np.zeros((n_turn,2),dtype=float)
 while my_bunch.period < n_turn:
     abort = True
     if my_rank == 0:
@@ -124,20 +135,25 @@ while my_bunch.period < n_turn:
             print(f'Turn {my_bunch.period}, time per turn {time_per_turn}s',flush=True)
             turn_at_last_print = my_bunch.period
             time_at_last_print = time.time()
+    current_period = my_bunch.period
     my_bunch.step()
+    if current_period != my_bunch.period and current_period<n_turn:
+        multiturn_data[current_period,0] = np.average(my_bunch.x)
+        multiturn_data[current_period,1] = np.average(my_bunch.y)
+
 print(f'Rank {my_rank} finished tracking')
+np.savetxt(f'multiturndata_{my_bunch.ID.name}.csv',multiturn_data,delimiter=',')
 
 if my_rank == 0:
     from matplotlib import pyplot as plt
-    import os,h5py
+    import os
 
     for beam_number in [1,2]:
-        file_name = f'BeamBeam_B{beam_number}b1.h5'
+        file_name = f'multiturndata_B{beam_number}b1.csv'
         if os.path.exists(file_name):
-            f = h5py.File(file_name, 'r')
-            positions_x = np.array(f.get('Bunch/mean_x'))/np.sqrt(epsn_x*betastar_x/gamma)
-            positions_y = np.array(f.get('Bunch/mean_y'))/np.sqrt(epsn_y*betastar_y/gamma)
-            f.close()
+            multiturn_data = np.loadtxt(file_name,delimiter=',')
+            positions_x = multiturn_data[:,0]/np.sqrt(epsn_x*betastar_x/gamma)
+            positions_y = multiturn_data[:,1]/np.sqrt(epsn_y*betastar_y/gamma)
 
             plt.figure(beam_number)
             plt.plot(np.arange(len(positions_x))*1E-3,positions_x,'x')

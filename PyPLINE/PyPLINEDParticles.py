@@ -1,6 +1,6 @@
 #import time
 from mpi4py import MPI
-import xtrack as xt
+import xpart as xp
 
 class PyPLINEDParticlesID:
     def __init__(self,name,number,rank):
@@ -9,7 +9,7 @@ class PyPLINEDParticlesID:
         self.rank = rank
 
 # The bunches in the same core must have a different number. The name is there for convenience.
-class PyPLINEDParticles(xt.Particles):
+class PyPLINEDParticles(xp.Particles):
 
     def __init__(self,name,rank,number,delay=0.0,*args, **kwargs):
         self._comm = MPI.COMM_WORLD

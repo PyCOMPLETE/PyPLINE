@@ -1,4 +1,4 @@
-import pickle,copy
+import pickle,copy,time
 from collections import deque
 import numpy as np
 
@@ -47,9 +47,6 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
         slice_set_kwargs['n_macroparticles_per_slice'] = arrays_recvd['n_macroparticles_per_slice'].astype(int)
         slice_set_kwargs['slice_index_of_particle'] = None
         slice_set_kwargs['beam_parameters'] = {'beta':self._recv_buffer[-2]}
-        #TODO there seem to be an issue, sometimes beta is not properly recieved (it is sent correctly though)
-        #     it could be that some of data in the slice set is corrupted as well
-        #TODO fill_value=0.0,bounds_error=False was added to interp1d in wakes.py, but shouldn't be needed
         slice_set = SliceSet(**slice_set_kwargs)
         for statistic in self._statistics:
             setattr(slice_set,statistic,arrays_recvd[statistic])
@@ -58,23 +55,22 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
 
     def send_messages(self,beam, partners_IDs):
         if len(partners_IDs)>0:
-            key = self.get_message_key(beam.ID,partners_IDs[0])
             request_is_pending = False
-            if key in self._pending_requests.keys():
-                if beam.period == self._pending_requests[key]:
-                    #print('There is a pending request with key',key,'at turn',beam.period,flush=True)
+            for key in self._pending_requests.keys():
+                #print(key,self._pending_requests[key].Test())
+                if not self._pending_requests[key].Test():
                     request_is_pending = True
+                    break
             if not request_is_pending:
                 if not beam.is_real:
                     print('Cannot compute slices on fake beam')
                 slice_set = beam.get_slices(self.slicer,statistics=self._statistics)
-                self._pending_requests[key] = beam.period
                 for partner_ID in partners_IDs:
                     tag = self.get_message_tag(beam.ID,partner_ID)
                     key = self.get_message_key(beam.ID,partner_ID)
                     #print(beam.ID.name,'sending slice set to',partner_ID.name,'with tag',tag,flush=True)
                     self._slice_set_to_buffer(slice_set,beam.delay,key)
-                    self._comm.Isend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
+                    self._pending_requests[key] = self._comm.Issend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
 
     def messages_are_ready(self,beam_ID, partners_IDs):
         for partner_ID in partners_IDs:
@@ -86,7 +82,6 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
         if beam.ID.number not in self.slice_set_deque.keys():
             self.slice_set_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners_IDs)))
             self.slice_set_age_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners_IDs)))
-        # delaying past slice sets
         for i in range(len(self.slice_set_age_deque[beam.ID.number])):
             self.slice_set_age_deque[beam.ID.number][i] += (beam.circumference / (beam.beta * constants.c))
         # retrieving my own slice set (it was already computed in 'sendMessages') 

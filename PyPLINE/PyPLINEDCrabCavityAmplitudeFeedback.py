@@ -71,8 +71,6 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
 
         self._statistics = ['mean_x','mean_y']
 
-        self.counter = 0
-
     def _tilts_to_buffer(self,tilt_x,tilt_y,delay,key):
         if key not in self._send_buffers.keys():
             self._send_buffers[key] = np.zeros(self._buffer_size,dtype=np.float64)
@@ -92,10 +90,6 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
             for key in self._pending_requests.keys():
                 if not self._pending_requests[key].Test():
                     ###print(beam.ID.name,'turn',beam.period,'there is a pending request with key',key)
-                    if self.counter > 1000:
-                        myFile = open(f'{beam.ID.name}.txt','a')
-                        myFile.write(f'{beam.period}: there is a pending request with key {key}\n')
-                        myFile.close()
                     request_is_pending = True
                     break
             if not request_is_pending:
@@ -106,23 +100,13 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
                     key = self.get_message_key(beam.ID,partner_ID)
                     self._tilts_to_buffer(tilt_x,tilt_y,beam.delay,key)
                     ###print(beam.ID.name,'turn',beam.period,'sending tilts to',partner_ID.name,'with tag',tag,flush=True)
-                    if self.counter > 1000:
-                        myFile = open(f'{beam.ID.name}.txt','a')
-                        myFile.write(f'{beam.period}: sending tilts to {partner_ID.name}\n')
-                        myFile.close()
                     self._pending_requests[key] = self._comm.Issend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
 
     def messages_are_ready(self,beam_ID, partners_IDs):
         for partner_ID in partners_IDs:
             if not self._comm.Iprobe(source=partner_ID.rank, tag=self.get_message_tag(partner_ID,beam_ID)):
                 ###print(beam_ID.name,'waiting on message from',partner_ID.name)
-                if self.counter > 1000:
-                    myFile = open(f'{beam_ID.name}.txt','a')
-                    myFile.write(f'waiting on message from {partner_ID.name}\n')
-                    myFile.close()
-                self.counter += 1
                 return False
-        self.counter = 0
         return True
 
     def track(self, beam, partners_IDs):
@@ -139,10 +123,6 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
         for partner_ID in partners_IDs:
             tag = self.get_message_tag(partner_ID,beam.ID)
             ###print(beam.ID.name,'turn',beam.period,'waiting to receive tilts from',partner_ID.name,'with tag',tag,flush=True)
-            if self.counter > 1000:
-                myFile = open(f'{beam.ID.name}.txt','a')
-                myFile.write(f'{beam.period}: receiving tilts from {partner_ID.name}\n')
-                myFile.close()
             self._comm.Recv(self._recv_buffer,source=partner_ID.rank,tag=tag)
             ###print(beam.ID.name,'turn',beam.period,'got tilts from',partner_ID.name,'with tag',tag,flush=True)
             self.tilts_x_deque[beam.ID.number].appendleft(self._recv_buffer[0])

@@ -16,32 +16,54 @@ class PyPLINEDBeamBeam(PyPLINEDElement):
     def set_beta0(self,beta0):
         self.tracker.update(beta0=beta0)
 
-    def send_messages(self,beam, partners_IDs):
-        tag = self.get_message_tag(beam.ID,partners_IDs[0])
-        key = self.get_message_key(beam.ID,partners_IDs[0])
+    def send_messages(self,beam, partners):
+        if beam.number not in self._pending_requests.keys():
+            self._pending_requests[beam.number] = {}
+            self._last_requests_turn[beam.number] = {}
+        tag = self.get_message_tag(beam,partners[0])
+        key = self.get_message_key(beam,partners[0])
         request_is_pending = False
-        if key in self._pending_requests.keys():
-            if beam.period == self._pending_requests[key]:
-                #print('There is a pending request with key',key,'at turn',beam.period)
+        if key in self._pending_requests[beam.number].keys():
+            if beam.period <= self._last_requests_turn[beam.number][key]:
+                #print(self.name,': a request with key',key,'was already sent at turn',self._last_requests_turn[beam.number][key],'(present turn',beam.period,')',flush=True)
                 request_is_pending = True
+            else:
+                #print(self.name,': testing for request with key',key,'at turn',beam.period,flush=True)
+                if not self._pending_requests[beam.number][key].Test():
+                    #print(self.name,': There is a pending request with key',key,'at turn',beam.period,flush=True)
+                    request_is_pending = True
         if not request_is_pending:
-            #print(beam.ID.name,'sending avg to',partners_IDs[0].name,'with tag',tag)
+            #print(beam.name,'sending avg to',partners[0].name,'with tag',tag)
             if not beam.is_real:
                 print('Cannot compute avg on fake beam')
+            if np.any(np.isnan(beam.x)):
+                print(beam.name,'turn',beam.period,'nan in x in BeamBeam')
             mean_x, sigma_x = xf.mean_and_std(beam.x)
             mean_y, sigma_y = xf.mean_and_std(beam.y)
             params = np.array([mean_x,mean_y,sigma_x,sigma_y,beam.macroparticlenumber*beam.particlenumber_per_mp],dtype=np.float64)
-            self._comm.Isend(params,dest=partners_IDs[0].rank,tag=tag)
-            self._pending_requests[key] = beam.period
+            #print(self.name,':',beam.name,'turn',beam.period,'sending',params,' to',partners[0].name,'with tag',tag,flush=True)
+            request = self._comm.Issend(params,dest=partners[0].rank,tag=tag)
+            self._pending_requests[beam.number][key] = request
+            self._last_requests_turn[beam.number][key] = beam.period
 
-    def messages_are_ready(self,beam_ID, partners_IDs):
-        return self._comm.Iprobe(source=partners_IDs[0].rank, tag=self.get_message_tag(partners_IDs[0],beam_ID))
+    def messages_are_ready(self,beam, partners):
+        return self._comm.Iprobe(source=partners[0].rank, tag=self.get_message_tag(partners[0],beam))
 
-    def track(self, beam, partners_IDs):
-        tag = self.get_message_tag(partners_IDs[0],beam.ID)
-        self._comm.Recv(self._recv_buffer,source=partners_IDs[0].rank,tag=tag)
-        #print(beam.ID.name,'revieved avg from',partners_IDs[0].name,'with tag',tag,self._recv_buffer)
+    def track(self, beam, partners):
+        tag = self.get_message_tag(partners[0],beam)
+        self._comm.Recv(self._recv_buffer,source=partners[0].rank,tag=tag)
+        #print(self.name,':',beam.name,'turn',beam.period,'recieved',self._recv_buffer,' from',partners[0].name,'with tag',tag,flush=True)
         self.tracker.update(mean_x=self._recv_buffer[0],mean_y=self._recv_buffer[1],sigma_x=self._recv_buffer[2],sigma_y=self._recv_buffer[3],n_particles=self._recv_buffer[4])
+        #if np.any(np.isnan(beam.px)):
+        #    print(beam.name,'turn',beam.period,'nan in px before track in beambeam')
+        #else:
+        #    print(beam.name,'turn',beam.period,'no nan in px before track in beambeam')
         self.tracker.track(beam)
+        #if np.any(np.isnan(beam.px)):
+        #    print(beam.name,'turn',beam.period,'nan in px after track in beambeam')
+        #else:
+        #    print(beam.name,'turn',beam.period,'no nan in px after track in beambeam')
+
+
     
 

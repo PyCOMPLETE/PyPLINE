@@ -1,6 +1,8 @@
-import pickle,copy
+import pickle,copy,time
 from collections import deque
 import numpy as np
+
+#from mpi4py import MPI
 
 from scipy import constants
 
@@ -71,6 +73,8 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
 
         self._statistics = ['mean_x','mean_y']
 
+        ###self.counter = 0
+
     def _tilts_to_buffer(self,tilt_x,tilt_y,delay,key):
         if key not in self._send_buffers.keys():
             self._send_buffers[key] = np.zeros(self._buffer_size,dtype=np.float64)
@@ -78,61 +82,71 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
         self._send_buffers[key][1] = tilt_y
         self._send_buffers[key][2] = delay
 
-    def send_messages(self,beam, partners_IDs):
+    def send_messages(self,beam, partners):
+        if beam.number not in self._pending_requests.keys():
+            self._pending_requests[beam.number] = {}
+            self._last_requests_turn[beam.number] = {}
         self._transfer_to_pickup.track(beam)
         slice_set = beam.get_slices(self.slicer,statistics=self._statistics)
         self._transfer_from_pickup.track(beam)
         tilt_x,tilt_y = self.get_tilts(slice_set)
-        key = self.get_message_key(beam.ID,beam.ID)
+        key = self.get_message_key(beam,beam)
         self._tilts_to_buffer(tilt_x,tilt_y,beam.delay,key)
-        if len(partners_IDs)>0:
+        if len(partners)>0:
             request_is_pending = False
-            for key in self._pending_requests.keys():
-                if not self._pending_requests[key].Test():
-                    ###print(beam.ID.name,'turn',beam.period,'there is a pending request with key',key)
+            for key in self._pending_requests[beam.number].keys():
+                if beam.period <= self._last_requests_turn[beam.number][key]:
                     request_is_pending = True
                     break
+                else:
+                    if not self._pending_requests[beam.number][key].Test():
+                        request_is_pending = True
+                        break
             if not request_is_pending:
                 if not beam.is_real:
                     print('Cannot compute slices on fake beam')
-                for partner_ID in partners_IDs:
-                    tag = self.get_message_tag(beam.ID,partner_ID)
-                    key = self.get_message_key(beam.ID,partner_ID)
-                    self._tilts_to_buffer(tilt_x,tilt_y,beam.delay,key)
-                    ###print(beam.ID.name,'turn',beam.period,'sending tilts to',partner_ID.name,'with tag',tag,flush=True)
-                    self._pending_requests[key] = self._comm.Issend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
+                for partner in partners:
+                    if beam.period > 0 or partner.delay > beam.delay: # on the first turn, only send message to partners that are behind
+                        tag = self.get_message_tag(beam,partner)
+                        key = self.get_message_key(beam,partner)
+                        self._tilts_to_buffer(tilt_x,tilt_y,beam.delay,key)
+                        self._pending_requests[beam.number][key] = self._comm.Issend(self._send_buffers[key],dest=partner.rank,tag=tag)
+                        self._last_requests_turn[beam.number][key] = beam.period
 
-    def messages_are_ready(self,beam_ID, partners_IDs):
-        for partner_ID in partners_IDs:
-            if not self._comm.Iprobe(source=partner_ID.rank, tag=self.get_message_tag(partner_ID,beam_ID)):
-                ###print(beam_ID.name,'waiting on message from',partner_ID.name)
-                return False
+    def messages_are_ready(self,beam, partners):
+        for partner in partners:
+            if beam.period > 0 or partner.delay < beam.delay: # on the first turn, expect only messages from bunches ahead
+                if not self._comm.Iprobe(source=partner.rank, tag=self.get_message_tag(partner,beam)):
+                    return False
         return True
 
-    def track(self, beam, partners_IDs):
+    def track(self, beam, partners):
         revolution_time = (beam.circumference / (beam.beta * constants.c))
-        group_delay_in_seconds = self.group_delay*revolution_time
-        if beam.ID.number not in self.tilts_age_deque.keys():
-            self.tilts_x_deque[beam.ID.number] = deque([], maxlen=self.n_turns*(1+len(partners_IDs)))
-            self.tilts_y_deque[beam.ID.number] = deque([], maxlen=self.n_turns*(1+len(partners_IDs)))
-            self.tilts_age_deque[beam.ID.number] = deque([], maxlen=self.n_turns*(1+len(partners_IDs)))
+        if beam.number not in self.tilts_age_deque.keys():
+            self.tilts_x_deque[beam.number] = deque([], maxlen=self.n_turns*(1+len(partners)))
+            self.tilts_y_deque[beam.number] = deque([], maxlen=self.n_turns*(1+len(partners)))
+            self.tilts_age_deque[beam.number] = deque([], maxlen=self.n_turns*(1+len(partners)))
         # delaying past signals
-        for i in range(len(self.tilts_age_deque[beam.ID.number])):
-            self.tilts_age_deque[beam.ID.number][i] += revolution_time
+        for i in range(len(self.tilts_age_deque[beam.number])):
+            self.tilts_age_deque[beam.number][i] += revolution_time
         # adding signal from other bunches
-        for partner_ID in partners_IDs:
-            tag = self.get_message_tag(partner_ID,beam.ID)
-            ###print(beam.ID.name,'turn',beam.period,'waiting to receive tilts from',partner_ID.name,'with tag',tag,flush=True)
-            self._comm.Recv(self._recv_buffer,source=partner_ID.rank,tag=tag)
-            ###print(beam.ID.name,'turn',beam.period,'got tilts from',partner_ID.name,'with tag',tag,flush=True)
-            self.tilts_x_deque[beam.ID.number].appendleft(self._recv_buffer[0])
-            self.tilts_y_deque[beam.ID.number].appendleft(self._recv_buffer[1])
-            self.tilts_age_deque[beam.ID.number].appendleft(beam.delay-self._recv_buffer[2]-group_delay_in_seconds) # The age is set in the future corresponding to the group delay. 
+        for partner in partners:
+            if beam.period > 0 or partner.delay < beam.delay: # on the first turn, get only messages from bunches ahead
+                if partner.delay < beam.delay:
+                    group_delay_in_seconds = self.group_delay*revolution_time # partner is ahead, the last passage was in the same turn
+                else:
+                    group_delay_in_seconds = (self.group_delay-1)*revolution_time # partner is behind, the last passage was in the previous turn
+                tag = self.get_message_tag(partner,beam)
+                self._comm.Recv(self._recv_buffer,source=partner.rank,tag=tag)
+                self.tilts_x_deque[beam.number].appendleft(self._recv_buffer[0])
+                self.tilts_y_deque[beam.number].appendleft(self._recv_buffer[1])
+                self.tilts_age_deque[beam.number].appendleft(beam.delay-self._recv_buffer[2]-group_delay_in_seconds) # The age is set in the future corresponding to the group delay. 
         # adding my own signal
-        key = self.get_message_key(beam.ID,beam.ID)
-        self.tilts_x_deque[beam.ID.number].appendleft(self._send_buffers[key][0])
-        self.tilts_y_deque[beam.ID.number].appendleft(self._send_buffers[key][1])
-        self.tilts_age_deque[beam.ID.number].appendleft(-group_delay_in_seconds)
+        group_delay_in_seconds = self.group_delay*revolution_time 
+        key = self.get_message_key(beam,beam)
+        self.tilts_x_deque[beam.number].appendleft(self._send_buffers[key][0])
+        self.tilts_y_deque[beam.number].appendleft(self._send_buffers[key][1])
+        self.tilts_age_deque[beam.number].appendleft(-group_delay_in_seconds)
 
         if self.linear_kick:
             sine = self.crab_k*beam.zeta
@@ -141,16 +155,17 @@ class PyPLINEDCrabCavityAmplitudeFeedback(PyPLINEDElement):
             sine = np.sin(self.crab_k*beam.zeta)
             cosine = np.cos(self.crab_k*beam.zeta)
 
-        for i in range(len(self.tilts_x_deque[beam.ID.number])):
-            scale = np.exp(-self.crab_omega*np.abs(self.tilts_age_deque[beam.ID.number][i])/(2*self.crab_Q))
+        for i in range(len(self.tilts_x_deque[beam.number])):
+            scale = np.exp(-self.crab_omega*np.abs(self.tilts_age_deque[beam.number][i])/(2*self.crab_Q))
             if self.gain_x != 0.0 and scale != 0.0:
-                #print('PyPLINEDCrabCavityAmplitudeFeedback',beam.ID.name,beam.period,self.gain_x,self.tilts_x_deque[beam.ID.number][i],scale)
-                kickAmpl = self.gain_x*self.tilts_x_deque[beam.ID.number][i]*scale # correspond to qV/E
+                #print('PyPLINEDCrabCavityAmplitudeFeedback',beam.name,beam.period,self.gain_x,self.tilts_x_deque[beam.number][i],scale)
+                kickAmpl = self.gain_x*self.tilts_x_deque[beam.number][i]*scale # correspond to qV/E
                 beam.px -= kickAmpl*sine # https://twiki.cern.ch/twiki/bin/viewauth/LHCAtHome/SixTrackDocRFElements
                 if self.energy_kick:
                     beam.delta -= kickAmpl*beam.x*self.crab_k*cosine
             if self.gain_y != 0.0 and scale != 0.0:
-                kickAmpl = self.gain_y*self.tilts_y_deque[beam.ID.number][i]*scale
+                #print('PyPLINEDCrabCavityAmplitudeFeedback',beam.name,beam.period,self.gain_y,self.tilts_y_deque[beam.number][i],scale)
+                kickAmpl = self.gain_y*self.tilts_y_deque[beam.number][i]*scale
                 beam.py -= kickAmpl*sine # https://twiki.cern.ch/twiki/bin/viewauth/LHCAtHome/SixTrackDocRFElements
                 if self.energy_kick:
                     beam.delta -= kickAmpl*beam.y*self.crab_k*cosine

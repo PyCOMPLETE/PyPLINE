@@ -53,51 +53,65 @@ class PyPLINEDWakeField(WakeField,PyPLINEDElement):
 
         return slice_set,self._recv_buffer[-1]
 
-    def send_messages(self,beam, partners_IDs):
-        if len(partners_IDs)>0:
+    def send_messages(self,beam, partners):
+        if beam.number not in self._pending_requests.keys():
+            self._pending_requests[beam.number] = {}
+            self._last_requests_turn[beam.number] = {}
+        if len(partners)>0:
             request_is_pending = False
-            for key in self._pending_requests.keys():
-                #print(key,self._pending_requests[key].Test())
-                if not self._pending_requests[key].Test():
+            if beam.period <= self._last_requests_turn[beam.number][key]:
+                request_is_pending = True
+                break
+            else:
+                if not self._pending_requests[beam.number][key].Test():
                     request_is_pending = True
                     break
             if not request_is_pending:
                 if not beam.is_real:
                     print('Cannot compute slices on fake beam')
                 slice_set = beam.get_slices(self.slicer,statistics=self._statistics)
-                for partner_ID in partners_IDs:
-                    tag = self.get_message_tag(beam.ID,partner_ID)
-                    key = self.get_message_key(beam.ID,partner_ID)
-                    #print(beam.ID.name,'sending slice set to',partner_ID.name,'with tag',tag,flush=True)
-                    self._slice_set_to_buffer(slice_set,beam.delay,key)
-                    self._pending_requests[key] = self._comm.Issend(self._send_buffers[key],dest=partner_ID.rank,tag=tag)
+                for partner in partners:
+                    if beam.period > 0 or partner.delay > beam.delay: # on the first turn, only send message to partners that are behind
+                        tag = self.get_message_tag(beam,partner)
+                        key = self.get_message_key(beam,partner)
+                        #print(beam.name,'sending slice set to',partner.name,'with tag',tag,flush=True)
+                        self._slice_set_to_buffer(slice_set,beam.delay,key)
+                        self._pending_requests[beam.number][key] = self._comm.Issend(self._send_buffers[key],dest=partner.rank,tag=tag)
+                        self._last_requests_turn[beam.number][key] = beam.period
 
-    def messages_are_ready(self,beam_ID, partners_IDs):
-        for partner_ID in partners_IDs:
-            if not self._comm.Iprobe(source=partner_ID.rank, tag=self.get_message_tag(partner_ID,beam_ID)):
-                return False
+    def messages_are_ready(self,beam, partners):
+        for partner in partners:
+            if beam.period > 0 or partner.delay < beam.delay: # on the first turn, expect only messages from bunches ahead
+                if not self._comm.Iprobe(source=partner.rank, tag=self.get_message_tag(partner,beam)):
+                    return False
         return True
 
-    def track(self, beam, partners_IDs):
-        if beam.ID.number not in self.slice_set_deque.keys():
-            self.slice_set_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners_IDs)))
-            self.slice_set_age_deque[beam.ID.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners_IDs)))
-        for i in range(len(self.slice_set_age_deque[beam.ID.number])):
-            self.slice_set_age_deque[beam.ID.number][i] += (beam.circumference / (beam.beta * constants.c))
+    def track(self, beam, partners):
+        revolution_time = (beam.circumference / (beam.beta * constants.c))
+        if beam.number not in self.slice_set_deque.keys():
+            self.slice_set_deque[beam.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners)))
+            self.slice_set_age_deque[beam.number] = deque([], maxlen=self.n_turns_wake*(1+len(partners)))
+        for i in range(len(self.slice_set_age_deque[beam.number])):
+            self.slice_set_age_deque[beam.number][i] += (beam.circumference / (beam.beta * constants.c))
         # retrieving my own slice set (it was already computed in 'sendMessages') 
         slice_set = beam.get_slices(self.slicer,statistics=['mean_x', 'mean_y'])
         # adding slice sets from other bunches
-        for partner_ID in partners_IDs:
-            tag = self.get_message_tag(partner_ID,beam.ID)
-            #print(beam.ID.name,'receiving slice set from',partner_ID.name,'with tag',tag,flush=True)
-            self._comm.Recv(self._recv_buffer,source=partner_ID.rank,tag=tag)
-            partner_slice_set,partner_delay = self._slice_set_from_buffer(slice_set)
-            self.slice_set_deque[beam.ID.number].appendleft(partner_slice_set)
-            self.slice_set_age_deque[beam.ID.number].appendleft(beam.delay-partner_delay)
+        for partner in partners:
+            if beam.period > 0 or partner.delay < beam.delay: # on the first turn, get only messages from bunches ahead
+                if partner.delay < beam.delay:
+                    turn_delay = 0.0 # partner is ahead, the last passage was in the same turn
+                else:
+                    turn_delay = revolution_time  # partner is behind, the last passage was in the previous turn
+                tag = self.get_message_tag(partner,beam)
+                #print(beam.name,'receiving slice set from',partner.name,'with tag',tag,flush=True)
+                self._comm.Recv(self._recv_buffer,source=partner.rank,tag=tag)
+                partner_slice_set,partner_delay = self._slice_set_from_buffer(slice_set)
+                self.slice_set_deque[beam.number].appendleft(partner_slice_set)
+                self.slice_set_age_deque[beam.number].appendleft(beam.delay-partner_delay+turn_delay)
         # adding my own slice set (note: my own slice set needs to be the first in the list since PyHEADTAIL uses its 'slice_index_of_particle')
-        self.slice_set_deque[beam.ID.number].appendleft(slice_set)
-        self.slice_set_age_deque[beam.ID.number].appendleft(0.0)
+        self.slice_set_deque[beam.number].appendleft(slice_set)
+        self.slice_set_age_deque[beam.number].appendleft(0.0)
         # applying all kicks
         for kick in self.wake_kicks:
-            kick.apply(beam, self.slice_set_deque[beam.ID.number], self.slice_set_age_deque[beam.ID.number])
+            kick.apply(beam, self.slice_set_deque[beam.number], self.slice_set_age_deque[beam.number])
 
